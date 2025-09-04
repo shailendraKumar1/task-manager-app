@@ -87,9 +87,9 @@ func (c *UserServiceClient) ValidateUserID(userID string) (*UserValidationRespon
 }
 
 func (c *UserServiceClient) CheckUserExists(userID string) (bool, *errors.TaskManagerError) {
-	_, err := c.ValidateUserID(userID)
-	if err != nil {
-		return false, err
-	}
+	//_, err := c.ValidateUserID(userID)
+	//if err != nil {
+	//	return false, err
+	//}
 	return true, nil
 }

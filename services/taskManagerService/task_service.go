@@ -1,7 +1,6 @@
 package taskManagerService
 
 import (
-	"fmt"
 	"task-manager-app/constants"
 	"task-manager-app/constants/enums"
 	"task-manager-app/exceptions"
@@ -10,7 +9,7 @@ import (
 	"task-manager-app/repo"
 	"task-manager-app/request"
 	"task-manager-app/response"
-	"task-manager-app/services/userManagerServices"
+	"task-manager-app/services/validationService"
 	"task-manager-app/utils"
 )
 
@@ -23,32 +22,21 @@ type TaskService interface {
 }
 
 type taskService struct {
-	repo        repo.TaskRepository
-	userService userManagerServices.UserService
+	repo              repo.TaskRepository
+	validationService validationService.ValidationService
 }
 
-func NewTaskService(repository repo.TaskRepository) TaskService {
+func NewTaskService(repository repo.TaskRepository, validationSvc validationService.ValidationService) TaskService {
 	return &taskService{
-		repo:        repository,
-		userService: userManagerServices.NewUserService(),
+		repo:              repository,
+		validationService: validationSvc,
 	}
 }
 
 func (s *taskService) CreateTask(req *request.ReqCreateOrUpdateTasks) (*response.TaskResponse, *errors.TaskManagerError) {
-	// Validate for create
-	if err := s.validateReq(req); err != nil {
+	// Validate request
+	if err := s.validationService.ValidateCreateTaskRequest(req); err != nil {
 		return nil, err
-	}
-
-	// Validate user ID if provided
-	if req.UserID != nil && *req.UserID != "" {
-		isValid, userErr := s.userService.ValidateUser(*req.UserID)
-		if userErr != nil {
-			return nil, exceptions.InternalServerException(fmt.Sprintf("Failed to validate user: %v", userErr))
-		}
-		if !isValid {
-			return nil, exceptions.NotFoundException(constants.ErrUserNotFound)
-		}
 	}
 
 	// Convert request to model
@@ -60,72 +48,20 @@ func (s *taskService) CreateTask(req *request.ReqCreateOrUpdateTasks) (*response
 		UserID:      req.UserID,
 	}
 
-	// Set default status if empty
 	if task.Status == "" {
 		task.Status = string(enums.StatusPending)
 	}
-
-	// Set default priority if empty
 	if task.Priority == "" {
 		task.Priority = string(enums.PriorityMedium)
 	}
 
+	// Save
 	if taskErr := s.repo.Create(task); taskErr != nil {
 		return nil, taskErr
 	}
-
-	return s.taskDTOMapperResponse(task), nil
+	return s.toResponse(task), nil
 }
 
-func (s *taskService) UpdateTask(uuid string, req *request.ReqCreateOrUpdateTasks) (*response.TaskResponse, *errors.TaskManagerError) {
-	// Validate for update
-	if err := s.validateReq(req); err != nil {
-		return nil, err
-	}
-
-	// Get existing task with row-level locking for update
-	task, taskErr := s.repo.GetByUUIDForUpdate(uuid)
-	if taskErr != nil {
-		return nil, taskErr
-	}
-	if task == nil {
-		return nil, exceptions.NotFoundException(constants.ErrTaskNotFound)
-	}
-
-	// Apply updates from request
-	if req.Title != nil {
-		task.Title = *req.Title
-	}
-	if req.Description != nil {
-		task.Description = *req.Description
-	}
-	if req.Status != nil {
-		task.Status = *req.Status
-	}
-	if req.Priority != nil {
-		task.Priority = *req.Priority
-	}
-	if req.UserID != nil && *req.UserID != "" {
-		// Validate user ID before updating
-		isValid, userErr := s.userService.ValidateUser(*req.UserID)
-		if userErr != nil {
-			return nil, exceptions.InternalServerException(fmt.Sprintf("Failed to validate user: %v", userErr))
-		}
-		if !isValid {
-			return nil, exceptions.NotFoundException(constants.ErrUserNotFound)
-		}
-		task.UserID = req.UserID
-	}
-
-	// Update in database
-	if taskErr := s.repo.Update(task); taskErr != nil {
-		return nil, taskErr
-	}
-
-	return s.taskDTOMapperResponse(task), nil
-}
-
-// GetTaskByUUID fetches a task
 func (s *taskService) GetTaskByUUID(uuid string) (*response.TaskResponse, *errors.TaskManagerError) {
 	task, taskErr := s.repo.GetByUUID(uuid)
 	if taskErr != nil {
@@ -134,12 +70,10 @@ func (s *taskService) GetTaskByUUID(uuid string) (*response.TaskResponse, *error
 	if task == nil {
 		return nil, exceptions.NotFoundException(constants.ErrTaskNotFound)
 	}
-	return s.taskDTOMapperResponse(task), nil
+	return s.toResponse(task), nil
 }
 
-// DeleteTask removes a task
 func (s *taskService) DeleteTask(uuid string) *errors.TaskManagerError {
-	// Check if task exists with row-level locking before deletion
 	task, taskErr := s.repo.GetByUUIDForUpdate(uuid)
 	if taskErr != nil {
 		return taskErr
@@ -147,44 +81,35 @@ func (s *taskService) DeleteTask(uuid string) *errors.TaskManagerError {
 	if task == nil {
 		return exceptions.NotFoundException(constants.ErrTaskNotFound)
 	}
-
 	return s.repo.Delete(uuid)
 }
 
-// ListTasks with pagination and filtering
 func (s *taskService) ListTasks(status string, userID string, priority string, page, pageSize int) (*response.TaskListResponse, *errors.TaskManagerError) {
 	if page < 1 {
 		page = 1
 	}
 	offset := (page - 1) * pageSize
-	
-	// Validate user ID if provided for filtering
+
+	// Validate filters
 	if userID != "" {
-		isValid, userErr := s.userService.ValidateUser(userID)
-		if userErr != nil {
-			return nil, exceptions.InternalServerException(fmt.Sprintf("Failed to validate user: %v", userErr))
-		}
-		if !isValid {
-			return nil, exceptions.NotFoundException(constants.ErrUserNotFound)
+		if err := s.validationService.ValidateUserID(userID); err != nil {
+			return nil, err
 		}
 	}
-	
-	// Validate priority if provided for filtering
 	if priority != "" {
-		if !enums.TaskPriority(priority).IsValid() {
-			return nil, exceptions.NewBadRequestException(constants.ErrInvalidTaskPriority)
+		if err := s.validationService.ValidateTaskPriority(priority); err != nil {
+			return nil, err
 		}
 	}
-	
+
 	tasks, taskErr := s.repo.List(status, userID, priority, pageSize, offset)
 	if taskErr != nil {
 		return nil, taskErr
 	}
 
-	// Convert to response objects
 	taskResponses := make([]response.TaskResponse, len(tasks))
-	for i, task := range tasks {
-		taskResponses[i] = *s.taskDTOMapperResponse(&task)
+	for i, t := range tasks {
+		taskResponses[i] = *s.toResponse(&t)
 	}
 
 	return &response.TaskListResponse{
@@ -195,30 +120,89 @@ func (s *taskService) ListTasks(status string, userID string, priority string, p
 	}, nil
 }
 
-func (s *taskService) validateReq(req *request.ReqCreateOrUpdateTasks) *errors.TaskManagerError {
-	if req.Title == nil || *req.Title == "" {
-		return exceptions.NewBadRequestException(constants.ErrTaskNotFound)
+func (s *taskService) UpdateTask(uuid string, req *request.ReqCreateOrUpdateTasks) (*response.TaskResponse, *errors.TaskManagerError) {
+	// Check if task exists
+	task, taskErr := s.repo.GetByUUIDForUpdate(uuid)
+	if taskErr != nil {
+		return nil, taskErr
+	}
+	if task == nil {
+		return nil, exceptions.NotFoundException(constants.ErrTaskNotFound)
 	}
 
-	if req.Status != nil && !enums.TaskStatus(*req.Status).IsValid() {
-		return exceptions.NewBadRequestException(constants.ErrInvalidTaskStatus)
+	// Apply updates in one place
+	changed, err := s.applyUpdates(task, req)
+	if err != nil {
+		return nil, err
 	}
 
-	if req.Priority != nil && !enums.TaskPriority(*req.Priority).IsValid() {
-		return exceptions.NewBadRequestException(constants.ErrInvalidTaskPriority)
+	if !changed {
+		return nil, exceptions.NewBadRequestException(constants.ErrNothingToChange)
 	}
 
-	// Validate user ID if provided
-	if req.UserID != nil {
-		if err := s.validateUserID(*req.UserID); err != nil {
-			return exceptions.NewBadRequestException(err.Error())
+	if taskErr := s.repo.Update(task); taskErr != nil {
+		return nil, taskErr
+	}
+
+	return s.toResponse(task), nil
+}
+
+func (s *taskService) applyUpdates(task *models.Task, req *request.ReqCreateOrUpdateTasks) (bool, *errors.TaskManagerError) {
+	changed := false
+
+	// Title
+	if req.Title != nil && s.updateField(&task.Title, *req.Title) {
+		changed = true
+	}
+
+	// Description
+	if req.Description != nil && s.updateField(&task.Description, *req.Description) {
+		changed = true
+	}
+
+	// Status
+	if req.Status != nil {
+		if err := s.validationService.ValidateTaskStatus(*req.Status); err != nil {
+			return false, err
+		}
+		if s.updateField(&task.Status, *req.Status) {
+			changed = true
 		}
 	}
 
-	return nil
+	// Priority
+	if req.Priority != nil {
+		if err := s.validationService.ValidateTaskPriority(*req.Priority); err != nil {
+			return false, err
+		}
+		if s.updateField(&task.Priority, *req.Priority) {
+			changed = true
+		}
+	}
+
+	// UserID
+	if req.UserID != nil && *req.UserID != "" {
+		if err := s.validationService.ValidateUserID(*req.UserID); err != nil {
+			return false, err
+		}
+		if task.UserID == nil || *task.UserID != *req.UserID {
+			task.UserID = req.UserID
+			changed = true
+		}
+	}
+
+	return changed, nil
 }
 
-func (s *taskService) taskDTOMapperResponse(task *models.Task) *response.TaskResponse {
+func (s *taskService) updateField(field *string, newValue string) bool {
+	if *field == newValue {
+		return false
+	}
+	*field = newValue
+	return true
+}
+
+func (s *taskService) toResponse(task *models.Task) *response.TaskResponse {
 	return &response.TaskResponse{
 		UUID:        task.UUID,
 		Title:       task.Title,
@@ -229,18 +213,4 @@ func (s *taskService) taskDTOMapperResponse(task *models.Task) *response.TaskRes
 		CreatedAt:   task.CreatedAt,
 		UpdatedAt:   task.UpdatedAt,
 	}
-}
-
-// validateUserID validates if the user ID exists using user service
-func (s *taskService) validateUserID(userID string) error {
-	exists, err := s.userService.ValidateUser(userID)
-	if err != nil {
-		return fmt.Errorf("failed to validate user ID: %s", err.Error())
-	}
-
-	if !exists {
-		return fmt.Errorf("user ID %s does not exist", userID)
-	}
-
-	return nil
 }

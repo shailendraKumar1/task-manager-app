@@ -1,2 +1,15 @@
 2025-09-04T13:10:07.496+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8080: bind: address already in use
 2025-09-04T13:24:05.884+0530	ERROR	[taskManager]	exceptions/not_found_exception.go:11	task not found
+2025-09-04T16:18:35.348+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8082: bind: address already in use
+2025-09-04T16:19:28.357+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8082: bind: address already in use
+2025-09-04T16:21:23.698+0530	ERROR	[taskManager]	userManager/user_service_client.go:52	Failed to call user service: Get "http://localhost:8080/api/users/userid2/validate": dial tcp [::1]:8080: connect: connection refused
+2025-09-04T16:23:51.647+0530	ERROR	[taskManager]	exceptions/not_found_exception.go:11	task not found
+2025-09-04T16:42:10.423+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8080: bind: address already in use
+2025-09-04T16:49:11.736+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8080: bind: address already in use
+2025-09-04T16:49:45.212+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8082: bind: address already in use
+2025-09-04T16:49:55.139+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8082: bind: address already in use
+2025-09-04T16:50:07.209+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8082: bind: address already in use
+2025-09-04T16:50:38.567+0530	ERROR	[taskManager]	exceptions/not_found_exception.go:11	task not found
+2025-09-04T17:05:48.698+0530	FATAL	[taskManager]	app/application.go:59	Error starting application: listen tcp 127.0.0.1:8082: bind: address already in use
+2025-09-04T17:17:21.607+0530	ERROR	[taskManager]	exceptions/not_found_exception.go:11	task not found
+2025-09-04T17:17:29.270+0530	ERROR	[taskManager]	exceptions/not_found_exception.go:11	task not found

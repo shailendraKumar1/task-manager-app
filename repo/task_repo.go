@@ -17,6 +17,7 @@ type TaskRepository interface {
 	Update(task *models.Task) *errors.TaskManagerError
 	Delete(uuid string) *errors.TaskManagerError
 	List(status string, userID string, priority string, limit, offset int) ([]models.Task, *errors.TaskManagerError)
+	ExistsByTitleAndUser(title string, userID string) (bool, *errors.TaskManagerError)
 }
 
 type taskRepository struct {
@@ -116,4 +117,17 @@ func (r *taskRepository) List(status string, userID string, priority string, lim
 		return nil, exceptions.InternalServerException(constants.ErrFailedToListTasks + ": " + err.Error())
 	}
 	return tasks, nil
+}
+
+// ExistsByTitleAndUser checks if a task with the same title already exists for a user
+func (r *taskRepository) ExistsByTitleAndUser(title string, userID string) (bool, *errors.TaskManagerError) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	var count int64
+	err := r.db.Model(&models.Task{}).Where("title = ? AND user_id = ?", title, userID).Count(&count).Error
+	if err != nil {
+		return false, exceptions.InternalServerException(constants.ErrFailedToGetTask + ": " + err.Error())
+	}
+	return count > 0, nil
 }

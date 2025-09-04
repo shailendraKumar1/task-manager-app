@@ -6,6 +6,8 @@ import (
 	"task-manager-app/network/userManager"
 	"task-manager-app/repo"
 	"task-manager-app/services/taskManagerService"
+	"task-manager-app/services/userManagerServices"
+	"task-manager-app/services/validationService"
 	"task-manager-app/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -42,7 +44,9 @@ func StartApplication() {
 
 	// Initialize repositories, services, and controllers
 	taskRepo := repo.NewTaskRepository(config.DB)
-	taskService := taskManagerService.NewTaskService(taskRepo)
+	userService := userManagerServices.NewUserService()
+	validationSvc := validationService.NewValidationService(userService, taskRepo)
+	taskService := taskManagerService.NewTaskService(taskRepo, validationSvc)
 	taskController := controller.NewTaskController(taskService)
 	healthController := controller.NewHealthController(config.DB)
 
