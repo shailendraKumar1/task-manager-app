@@ -42,7 +42,8 @@ User Service → Network Client → External API
 ```
 
 ### 2. **Service Layer Separation**
-- **TaskService**: Handles task business logic and validation
+- **TaskService**: Handles task business logic and orchestration
+- **ValidationService**: Centralized validation logic for all task operations
 - **UserService**: Abstracts user validation from external service
 - **Network Layer**: HTTP client for inter-service communication
 
@@ -69,9 +70,11 @@ graph TB
     B --> C[Task Controller]
     C --> D[Task Service]
     D --> E[Task Repository]
-    E --> F[MySQL Database]
+    E --> F[PostgreSQL Database]
     
-    D --> G[User Service]
+    D --> V[Validation Service]
+    V --> G[User Service]
+    V --> E
     G --> H[Network Client]
     H --> I[User Service API]
     
@@ -313,10 +316,125 @@ GET /tasks?status=Pending&user_id=550e8400-e29b-41d4-a716-446655440000&priority=
 - Validated against external user service
 - Required for task creation and updates
 
+## 🔍 Validation Service
+
+The Task Manager API includes a dedicated **ValidationService** that centralizes all validation logic, following clean architecture principles and separation of concerns.
+
+### Architecture Benefits
+- **Single Responsibility**: All validation logic isolated in one service
+- **Reusability**: Validation methods can be used across different services
+- **Maintainability**: Easy to modify validation rules in one place
+- **Testability**: Validation logic can be unit tested independently
+
+### Key Features
+
+#### 1. **Comprehensive Field Validation**
+```go
+// Interface methods
+ValidateTaskTitle(title *string) *errors.TaskManagerError
+ValidateTaskStatus(status string) *errors.TaskManagerError
+ValidateTaskPriority(priority string) *errors.TaskManagerError
+ValidateUserID(userID string) *errors.TaskManagerError
+```
+
+#### 2. **Request-Level Validation**
+```go
+// Validates entire request objects
+ValidateCreateTaskRequest(req *request.ReqCreateOrUpdateTasks) *errors.TaskManagerError
+ValidateUpdateTaskRequest(req *request.ReqCreateOrUpdateTasks) *errors.TaskManagerError
+```
+
+#### 3. **Business Rule Validation**
+```go
+// Prevents duplicate tasks per user
+CheckTaskDuplicateByTitle(title, userID string) *errors.TaskManagerError
+```
+
+### Validation Rules
+
+#### Task Creation Validation
+- **Title**: Required, cannot be empty
+- **Status**: Must be valid enum value (Pending, InProgress, Completed)
+- **Priority**: Must be valid enum value (Low, Medium, High, Urgent)
+- **User ID**: Must exist in user service
+- **Duplicate Check**: Prevents tasks with same title for same user
+
+#### Task Update Validation
+- **Field-Level**: Only validates provided fields
+- **Enum Validation**: Status and priority must be valid enum values
+- **User Validation**: User ID must exist if provided
+- **Change Detection**: Prevents updating fields to same values
+
+### Error Messages
+The validation service provides specific, user-friendly error messages:
+
+```json
+// Field validation errors
+{
+  "message": "task title cannot be empty",
+  "response_code": 400
+}
+
+// Enum validation errors
+{
+  "message": "invalid task status given in req",
+  "response_code": 400
+}
+
+// Business rule errors
+{
+  "message": "task with this title already exists for this user",
+  "response_code": 400
+}
+
+// Update validation errors
+{
+  "message": "No changes detected for update task",
+  "response_code": 400
+}
+```
+
+### Integration Pattern
+The validation service is injected into the task service using dependency injection:
+
+```go
+// Service initialization
+userService := userManagerServices.NewUserService()
+validationSvc := validationService.NewValidationService(userService, taskRepo)
+taskService := taskManagerService.NewTaskService(taskRepo, validationSvc)
+```
+
+### Usage Examples
+
+#### Create Task Validation
+```go
+func (s *taskService) CreateTask(req *request.ReqCreateOrUpdateTasks) (*response.TaskResponse, *errors.TaskManagerError) {
+    // Centralized validation
+    if err := s.validationService.ValidateCreateTaskRequest(req); err != nil {
+        return nil, err
+    }
+    // Business logic continues...
+}
+```
+
+#### Update Task Validation
+```go
+func (s *taskService) UpdateTask(uuid string, req *request.ReqCreateOrUpdateTasks) (*response.TaskResponse, *errors.TaskManagerError) {
+    // Field-specific validation
+    if req.Status != nil {
+        if err := s.validationService.ValidateTaskStatus(*req.Status); err != nil {
+            return nil, err
+        }
+    }
+    // Update logic continues...
+}
+```
+
 ## 🔧 Microservices Concepts Demonstrated
 
 ### 1. **Service Decomposition**
 - **Task Service**: Manages task lifecycle and business logic
+- **Validation Service**: Centralized validation logic with field-level validation
 - **User Service**: Handles user validation (external dependency)
 - **Network Layer**: Abstracts HTTP communication
 
