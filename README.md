@@ -83,7 +83,7 @@ graph TB
 
 ### Prerequisites
 - Go 1.19 or higher
-- MySQL 8.0 or higher
+- PostgreSQL 12.0 or higher
 - Git
 
 ### 1. Clone Repository
@@ -103,7 +103,6 @@ CREATE DATABASE task_db;
 CREATE USER taskuser WITH PASSWORD 'taskpassword';
 GRANT ALL PRIVILEGES ON DATABASE task_db TO taskuser;
 
--- Create tasks table with priority support
 CREATE TABLE tasks (
     id SERIAL PRIMARY KEY,
     uuid VARCHAR(255) UNIQUE NOT NULL,
@@ -144,8 +143,6 @@ go run main.go
 
 The service will start on `http://localhost:8080`
 
-### 6. Database Migration
-The service automatically creates tables on startup using GORM auto-migration with PostgreSQL.
 
 ## 📚 API Documentation
 
@@ -358,93 +355,8 @@ GET /tasks?status=Pending&user_id=550e8400-e29b-41d4-a716-446655440000&priority=
 - Enum-based status management
 - Validation at service boundaries
 
-## 📁 Project Structure
 
-```
-task-manager-app/
-├── app/                    # Application bootstrap
-│   ├── application.go      # Main application setup
-│   └── routes.go          # Route definitions
-├── config/                # Configuration management
-│   ├── application_config.go
-│   └── db_config.go
-├── constants/             # Application constants
-│   ├── enums/
-│   │   ├── status.go      # Task status enum
-│   │   └── priority.go    # Task priority enum
-│   └── constants.go
-├── controller/            # HTTP handlers
-│   └── task_controller.go
-├── exceptions/            # Error handling
-│   ├── errors/
-│   └── *.go
-├── models/               # Data models
-│   └── task.go
-├── network/              # External service clients
-│   ├── network_config.go
-│   └── user_service_client.go
-├── repo/                 # Data access layer
-│   └── task_repo.go
-├── request/              # Request DTOs
-│   └── task_request.go
-├── response/             # Response DTOs
-│   └── task_response.go
-├── resources/            # Configuration files
-│   └── .env
-├── services/             # Business logic
-│   ├── taskManagerService/
-│   │   └── task_service.go
-│   └── userManagerServices/
-│       └── user_service.go
-├── utils/                # Utility functions
-│   ├── logger_config.go
-│   └── task_manager_utils.go
-├── go.mod               # Go modules
-├── go.sum
-├── main.go              # Application entry point
-└── README.md            # This file
-```
 
-## 🧪 Testing
-
-### Unit Tests
-```bash
-go test ./...
-```
-
-### Integration Tests
-```bash
-go test -tags=integration ./...
-```
-
-### API Testing
-Use the provided Postman collection: `Task_Manager_API.postman_collection.json`
-
-## 🚀 Deployment
-
-### Docker Support
-```dockerfile
-FROM golang:1.19-alpine AS builder
-WORKDIR /app
-COPY . .
-RUN go build -o task-manager main.go
-
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/task-manager .
-CMD ["./task-manager"]
-```
-
-### Environment Variables
-- `POSTGRES_HOST`: Database host
-- `POSTGRES_PORT`: Database port
-- `POSTGRES_USERNAME`: Database username
-- `POSTGRES_PASSWORD`: Database password
-- `POSTGRES_DB_NAME`: Database name
-- `USER_SERVICE_URL`: External user service URL
-- `HOST`: Application host
-- `PORT`: Application port
 
 ## 📈 Monitoring & Observability
 
@@ -453,12 +365,6 @@ CMD ["./task-manager"]
 - Error tracking and metrics
 - Health check endpoints (future enhancement)
 
-## 🔒 Security Considerations
-
-- Input validation and sanitization
-- SQL injection prevention through GORM
-- Error message sanitization
-- Environment-based secrets management
 
 ---
 
