@@ -1,0 +1,2 @@
+2025-09-04T13:10:07.496+0530	FATAL	[taskManager]	app/application.go:55	Error starting application: listen tcp 127.0.0.1:8080: bind: address already in use
+2025-09-04T13:24:05.884+0530	ERROR	[taskManager]	exceptions/not_found_exception.go:11	task not found
