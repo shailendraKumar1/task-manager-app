@@ -122,13 +122,6 @@ CREATE TABLE tasks (
 ### 4. Environment Configuration
 Create/update `resources/.env`:
 ```env
-# Data
-# Run with custom environment
-docker run -p 8080:8080 \
-  -e POSTGRES_HOST=your-db-host \
-  -e POSTGRES_USERNAME=taskuser \
-  -e POSTGRES_PASSWORD=taskpassword \
-  task-manager:latest
 # Application Configuration
 APP_NAME=TaskManager
 APP_VERSION=1.0.0
